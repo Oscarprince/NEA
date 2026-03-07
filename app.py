@@ -4,6 +4,8 @@ from collections import Counter
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 import pandas as pd
 import requests
+import matplotlib.pyplot as plt
+
 
 # --------- Page Settings --------
 st.set_page_config(layout="wide", page_title="VGC Analyser", page_icon="https://www.serebii.net/itemdex/sprites/sv/pokeball.png")
@@ -190,7 +192,7 @@ def usage_list(data):
     usage = get_usage_data(data)
 
     dataFrame = pd.DataFrame(usage)[["Pokemon", "Total Usage"]]
-    st.dataframe(dataFrame, height = 850, hide_index=True)
+    st.dataframe(dataFrame, height = 1500, hide_index=True)
 
 def get_pokemon_list(data):
     usage = get_usage_data(data)
@@ -246,9 +248,55 @@ def get_pokemon_details(name):
 
     return sprite, stats
 
+# top 8 teams with the pokemon
+# most common partners
+
+# helper to create pie charts with specific styling parameters
+def make_pie_chart(counts, title, threshold=5):
+    total = sum(counts.values())
+    grouped = Counter()
+    other = 0
+    for name, count in counts.items():
+        if (count / total) * 100 < threshold:
+            other += count
+        else:
+            grouped[name] = count
+    if other > 0:
+        grouped['Other'] = other
+
+    fig, ax = plt.subplots(figsize=(4, 4))
+    ax.pie(
+        grouped.values(),
+        labels=None,
+        autopct=lambda p: f'{p:.1f}%' if p >= 5 else '',
+        startangle=90,
+    )
+    ax.legend(grouped.keys(), loc='lower center', bbox_to_anchor=(0.5, -0.2), fontsize=8)
+    fig.patch.set_facecolor('#0e1117')
+    ax.set_facecolor('#0e1117')
+    plt.setp(ax.texts, color='white')
+    st.subheader(title)
+    st.pyplot(fig, use_container_width=False)
+
+# creates pie chart with abilities used by each pokemon
+def pokemon_abilities(data, pokemon):
+    counts = Counter(mon['ability'] for player in data for mon in player['decklist'] if mon['name'] == pokemon)
+    make_pie_chart(counts, "Abilities")
+
+# creates pie chart with teras used by each pokemon
+def pokemon_teras(data, pokemon):
+    counts = Counter(mon['teratype'] for player in data for mon in player['decklist'] if mon['name'] == pokemon)
+    make_pie_chart(counts, "Tera Types")
+
+# creates pie chart with items used by each pokemon
+def pokemon_items(data, pokemon):
+    counts = Counter(mon['item'] for player in data for mon in player['decklist'] if mon['name'] == pokemon)
+    make_pie_chart(counts, "Items")
+
 def pokemon_info(data):
     col1, col2 = st.columns([1, 4])
     with col1:
+        st.subheader("Usage")
         usage_list(data)
     with col2:
         selected_pokemon = st.selectbox("Select a Pokemon", get_pokemon_list(data), index=None, placeholder="Enter a Pokemon...")
@@ -276,21 +324,19 @@ def pokemon_info(data):
                         st.write(str(value))
                     with bar_col:
                         st.progress(value / max_stat)
-
-# abilities
-# items
-# top 8 teams with the pokemon
-# most common partners
-
-def get_pokemon_abilities(data, pokemon):
-    pass
-
-def get_pokemon_teras(data, pokemon):
-    pass
-
-def get_pokemon_items(data, pokemon):
-    pass
-
+            abilities_col, teras_col, items_col = st.columns([1,1,1])
+            with abilities_col:
+                pokemon_abilities(data, selected_pokemon)
+            with teras_col:
+                pokemon_teras(data, selected_pokemon)
+            with items_col:
+                pokemon_items(data, selected_pokemon)
+            
+            top_teams_col, top_partners_col = st.columns([1,2])
+            with top_teams_col:
+                st.subheader(f"Top teams with {selected_pokemon}")
+            with top_partners_col:
+                st.subheader(f"Top Partners with {selected_pokemon}")
 
 # --------- Main ------------
 
