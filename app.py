@@ -67,8 +67,7 @@ def get_teamsheet(data, selected_name):
         })
     return teamsheet
 
-def tournament_stats(data):
-    query = st.text_input("Search for Player, Placing or Pokemon")
+def get_player_data(data):
     player_info = []
     for player in data:
         player_info.append({
@@ -82,6 +81,11 @@ def tournament_stats(data):
             "Pokemon 5": get_pokemon_name(player['decklist'], 4),
             "Pokemon 6": get_pokemon_name(player['decklist'], 5),
         })
+    return player_info
+
+def tournament_stats(data):
+    query = st.text_input("Search for Player, Placing or Pokemon")
+    player_info = get_player_data(data)
 
     # Filters the table for specific criteria
     if query:
@@ -192,7 +196,7 @@ def usage_list(data):
     usage = get_usage_data(data)
 
     dataFrame = pd.DataFrame(usage)[["Pokemon", "Total Usage"]]
-    st.dataframe(dataFrame, height = 1500, hide_index=True)
+    st.dataframe(dataFrame, height = 1717, hide_index=True)
 
 def get_pokemon_list(data):
     usage = get_usage_data(data)
@@ -226,10 +230,6 @@ def clean_pokemon_name(name):
     name = name.replace("-alolan-form", "-alola")
     name = name.replace("-paldean-form", "-paldea")
     
-    # Female/Male forms
-    name = name.replace("-female", "-f")
-    name = name.replace("-male", "-m")
-
     # Tatsugiri
     name = name.replace("-droopy-form", "-droopy")
     name = name.replace("-stretchy-form", "-stretchy")
@@ -293,6 +293,57 @@ def pokemon_items(data, pokemon):
     counts = Counter(mon['item'] for player in data for mon in player['decklist'] if mon['name'] == pokemon)
     make_pie_chart(counts, "Items")
 
+# finds the top performing teams with the selected pokemon
+def get_top_teams(data, pokemon, n=8):
+    player_info = get_player_data(data)
+    filtered = []
+    for p in player_info:
+        for i in range(1, 7):
+            if p[f'Pokemon {i}'] == pokemon:
+                filtered.append(p)
+                break
+    filtered.sort(key=lambda x: int(x['Placing']))
+    return filtered[:n]
+
+# find the most common partners for a pokemon
+def get_top_partners(data, pokemon):
+    partner_counts = Counter()
+    total = 0
+    for player in data:
+        names = [mon['name'] for mon in player['decklist']]
+        if pokemon in names:
+            total += 1
+            for name in names:
+                if name != pokemon:
+                    partner_counts[name] += 1
+    
+    partners = []
+    for name, count in partner_counts.most_common():
+        partners.append({
+            "Pokemon": name,
+            "Usage": f"{(count / total) * 100:.1f}%"
+        })
+    return partners
+
+def get_top_moves(data, pokemon):
+    move_counts = Counter()
+    total = 0
+    for player in data:
+        for mon in player['decklist']:
+            if mon['name'] == pokemon:
+                total += 1
+                for move in mon['badges']:
+                    move_counts[move] += 1
+    
+    moves = []
+    for move, count in move_counts.most_common():
+        moves.append({
+            "Move": move,
+            "Usage": f"{(count / total) * 100:.1f}%"
+        })
+    return moves
+
+# displays the pokemon info 
 def pokemon_info(data):
     col1, col2 = st.columns([1, 4])
     with col1:
@@ -319,7 +370,6 @@ def pokemon_info(data):
                     stat_name_col, stat_value_col, bar_col = st.columns([2, 1, 20])
                     with stat_name_col:
                         st.write(f"**{STAT_NAMES.get(stat, stat)}**")
-
                     with stat_value_col:
                         st.write(str(value))
                     with bar_col:
@@ -332,11 +382,23 @@ def pokemon_info(data):
             with items_col:
                 pokemon_items(data, selected_pokemon)
             
-            top_teams_col, top_partners_col = st.columns([1,2])
-            with top_teams_col:
-                st.subheader(f"Top teams with {selected_pokemon}")
-            with top_partners_col:
-                st.subheader(f"Top Partners with {selected_pokemon}")
+            # displays top 8 placing teams with the selected pokemon
+            st.subheader(f"Top teams with {selected_pokemon}")
+            top_teams = get_top_teams(data, selected_pokemon)
+            dataFrame = pd.DataFrame(top_teams)
+            st.dataframe(dataFrame, height=318, hide_index=True)
+
+            top_partners, top_moves = st.columns([1, 1])
+            with top_partners:
+                st.subheader(f"Top partners with {selected_pokemon}")
+                top_partners = get_top_partners(data, selected_pokemon)
+                dataFrame = pd.DataFrame(top_partners)
+                st.dataframe(dataFrame, height = 318, hide_index=True)
+            with top_moves:
+                st.subheader(f"Top moves used by {selected_pokemon}")
+                top_moves = get_top_moves(data, selected_pokemon)
+                dataFrame = pd.DataFrame(top_moves)
+                st.dataframe(dataFrame, height = 318, hide_index=True)               
 
 # --------- Main ------------
 
