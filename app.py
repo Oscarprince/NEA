@@ -62,6 +62,9 @@ st.title("VGC Tournament Analyser")
 def load_tournament():
     # Dictionary containing all tournaments. To add a new tournament, simply add a line under here
     tournaments = {
+        "Houston 2026": "Data Sets/Houston_2026.json",
+        "Curitiba 2026": "Data Sets/Curitiba_2026.json",
+        "Seattle 2026": "Data Sets/Seattle_2026.json",
         "EUIC 2026": "Data Sets/EUIC_2026.json",
         "Sydney 2026": "Data Sets/Sydney_2026.json",
         "Birmingham 2026": "Data Sets/Birmingham_2026.json",
@@ -295,7 +298,7 @@ def clean_pokemon_name(name):
     
     # Urshifu
     name = name.replace("-rapid-strike-style", "-rapid-strike")
-    name = name.replace("-single-strike-style", "")
+    name = name.replace("-single-strike-style", "-single-strike")
     
     # Genies
     name = name.replace("-incarnate-forme", "-incarnate")
