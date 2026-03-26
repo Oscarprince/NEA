@@ -6,6 +6,42 @@ import pandas as pd
 import requests
 import matplotlib.pyplot as plt
 
+# -------- Classes ----------
+class Pokemon:
+    def __init__(self, name, ability, item, teratype, moves):
+        self.name = name
+        self.ability = ability
+        self.item = item
+        self.teratype = teratype
+        self.moves = moves
+
+class Player:
+    def __init__(self, name, placing, wins, losses, decklist):
+        self.name = name
+        self.placing = placing
+        self.wins = wins
+        self.losses = losses
+        self.decklist = decklist  # list of Pokemon objects
+    
+    @property
+    def record(self):
+        return f"{self.wins}W - {self.losses}L"
+
+class RecentlyViewedQueue:
+    def __init__(self, max_size=3):
+        self.queue = []
+        self.max_size = max_size
+    
+    def enqueue(self, pokemon):
+        if pokemon in self.queue:
+            self.queue.remove(pokemon)
+        self.queue.append(pokemon)
+        if len(self.queue) > self.max_size:
+            self.queue.pop(0)
+    
+    def get_recent(self):
+        return list(reversed(self.queue))
+
 
 # --------- Page Settings --------
 st.set_page_config(layout="wide", page_title="VGC Analyser", page_icon="https://www.serebii.net/itemdex/sprites/sv/pokeball.png")
@@ -24,7 +60,7 @@ st.title("VGC Tournament Analyser")
 
 # ------- Tournament Picker -----------
 def load_tournament():
-# Dictionary containing all tournaments. To add a new tournament, simply add a line under here
+    # Dictionary containing all tournaments. To add a new tournament, simply add a line under here
     tournaments = {
         "EUIC 2026": "Data Sets/EUIC_2026.json",
         "Sydney 2026": "Data Sets/Sydney_2026.json",
@@ -32,11 +68,29 @@ def load_tournament():
         "Merida 2026": "Data Sets/Merida_2026.json",
         "Toronto 2026": "Data Sets/Toronto_2026.json",
     }
-
     tournament = st.selectbox("Select a tournament", list(tournaments.keys()))
-# with statement automatically closes file when it is not needed
-    with open(tournaments[tournament]) as f: 
-        return json.load(f)
+    with open(tournaments[tournament]) as f:
+        raw = json.load(f)
+    
+    players = []
+    for p in raw:
+        decklist = []
+        for mon in p['decklist']:
+            decklist.append(Pokemon(
+                name=mon['name'],
+                ability=mon['ability'],
+                item=mon['item'],
+                teratype=mon['teratype'],
+                moves=mon['badges']
+            ))
+        players.append(Player(
+            name=p['name'],
+            placing=p['placing'],
+            wins=p['record']['wins'],
+            losses=p['record']['losses'],
+            decklist=decklist
+        ))
+    return players
           
 
 
@@ -45,47 +99,33 @@ def load_tournament():
 # Ensures every player has 6 pokemon, sets them as "unknown" if missing
 def get_pokemon_name(decklist, index):
     if index < len(decklist):
-        return decklist[index]['name']
+        return decklist[index].name
     return "Unknown"
 
-
 def get_teamsheet(data, selected_name):
-    # first find the player in data
-    player = None
-    for i in data:
-        if i['name'] == selected_name:
-            player = i
-            break
-    teamsheet = []
-    for mon in player['decklist']:
-        teamsheet.append({
-            "Name": mon['name'],
-            "Item": mon['item'],
-            "Ability": mon['ability'],
-            "Tera Type": mon['teratype'],
-            "Moves": mon['badges'],
-        })
-    return teamsheet
+    for player in data:
+        if player.name == selected_name:
+            return player.decklist
 
-def get_player_data(data):
+def get_player_info(data):
     player_info = []
     for player in data:
         player_info.append({
-            "Name": player['name'],
-            "Placing": str(player['placing']),
-            "Record": f"{player['record']['wins']}W - {player['record']['losses']}L",
-            "Pokemon 1": get_pokemon_name(player['decklist'], 0),
-            "Pokemon 2": get_pokemon_name(player['decklist'], 1),
-            "Pokemon 3": get_pokemon_name(player['decklist'], 2),
-            "Pokemon 4": get_pokemon_name(player['decklist'], 3),
-            "Pokemon 5": get_pokemon_name(player['decklist'], 4),
-            "Pokemon 6": get_pokemon_name(player['decklist'], 5),
+            "Name": player.name,
+            "Placing": str(player.placing),
+            "Record": player.record,
+            "Pokemon 1": get_pokemon_name(player.decklist, 0),
+            "Pokemon 2": get_pokemon_name(player.decklist, 1),
+            "Pokemon 3": get_pokemon_name(player.decklist, 2),
+            "Pokemon 4": get_pokemon_name(player.decklist, 3),
+            "Pokemon 5": get_pokemon_name(player.decklist, 4),
+            "Pokemon 6": get_pokemon_name(player.decklist, 5),
         })
     return player_info
 
 def tournament_stats(data):
     query = st.text_input("Search for Player, Placing or Pokemon")
-    player_info = get_player_data(data)
+    player_info = get_player_info(data)
 
     # Filters the table for specific criteria
     if query:
@@ -121,13 +161,12 @@ def display_teamsheet(data, selected_name):
     teamsheet = get_teamsheet(data, selected_name)
     st.sidebar.header(f"Teamsheet: {selected_name.split(' [')[0]}")
     
-    # Code to display teamsheet in the showdown format
     showdown_text = ""
     for mon in teamsheet:
-        showdown_text += f"{mon['Name']} @ {mon['Item']}\n"
-        showdown_text += f"Ability: {mon['Ability']}\n"
-        showdown_text += f"Tera Type: {mon['Tera Type']}\n"
-        for move in mon['Moves']:
+        showdown_text += f"{mon.name} @ {mon.item}\n"
+        showdown_text += f"Ability: {mon.ability}\n"
+        showdown_text += f"Tera Type: {mon.teratype}\n"
+        for move in mon.moves:
             showdown_text += f"- {move}\n"
         showdown_text += "\n"
 
@@ -140,21 +179,20 @@ def get_usage_data(data):
     pokemon_wins = Counter()
     pokemon_losses = Counter()
     for player in data:
-        for mon in player['decklist']:
-            day1_counts[mon['name']] += 1
-            pokemon_wins[mon['name']] += player['record']['wins']
-            pokemon_losses[mon['name']] += player['record']['losses']
+        for mon in player.decklist:
+            day1_counts[mon.name] += 1
+            pokemon_wins[mon.name] += player.wins
+            pokemon_losses[mon.name] += player.losses
 
-    # Finds day 2 players by filtering for more than 5 wins       
+    # Finds players in day 2 by filtering for players with over 5 wins
     day2_players = []
     for i in data:
-        if i['record']['wins'] > 5:
+        if i.wins > 5:
             day2_players.append(i)
     day2_counts = Counter()
     for player in day2_players:
-        for mon in player['decklist']:
-            day2_counts[mon['name']] += 1
-
+        for mon in player.decklist:
+            day2_counts[mon.name] += 1
 
     usage = []
     for pokemon, count in day1_counts.most_common():
@@ -175,10 +213,55 @@ def get_usage_data(data):
 
     return usage
 
+def get_combinations(names, n, start=0):
+    if n == 0:
+        return [()]
+    combinations = []
+    for i in range(start, len(names)):
+        for combo in get_combinations(names, n - 1, i + 1):
+            combinations.append((names[i],) + combo)
+    return combinations
+
+def get_top_groups(data, n):
+    group_counts = Counter()
+    total = len(data)
+    for player in data:
+        names = [mon.name for mon in player.decklist]
+        for combo in get_combinations(names, n):
+            group = tuple(sorted(combo))
+            group_counts[group] += 1
+    
+    result = []
+    for group, count in group_counts.most_common(100):
+        row = {}
+        for i, pokemon in enumerate(group):
+            sprite, _ = get_pokemon_details(pokemon)
+            row[f"Pokemon {i + 1}"] = sprite
+        row["Usage"] = f"{(count / total) * 100:.1f}%"
+        result.append(row)
+    return result
+
 def usage_stats(data):
-    usage = get_usage_data(data)
-    st.subheader("Usage")
-    st.dataframe(usage, height = 785, hide_index=True)
+    usage_col, pairing_col = st.columns(2)
+    with usage_col:
+        usage = get_usage_data(data)
+        st.subheader("Usage")
+        st.dataframe(usage, height=770, hide_index=True)
+    with pairing_col:
+        st.subheader("Pokemon Groups")
+        tabs = st.tabs(["2", "3", "4", "5", "6"])
+        for i, tab in enumerate(tabs):
+            n = i + 2
+            with tab:
+                df = pd.DataFrame(get_top_groups(data, n))
+                st.dataframe(
+                    df,
+                    column_config={f"Pokemon {j}": st.column_config.ImageColumn(f"Pokemon {j}") for j in range(1, n + 1)},
+                    hide_index=True,
+                    row_height=80,
+                    height = 710
+                )
+
 
 # ------------ Pokemon Info ----------
 
@@ -234,22 +317,27 @@ def clean_pokemon_name(name):
     name = name.replace("-droopy-form", "-droopy")
     name = name.replace("-stretchy-form", "-stretchy")
     name = name.replace("-curly-form", "-curly")
+
+    # Sinistcha
+    name = name.replace("-masterpiece-form", "")
+    name = name.replace("-unremarkable-form", "")
     
     name = name.strip("-")
     return name
 
+# streamlit decorator that stores result of the function - this increases speed with large amounts of api calls
+@st.cache_data
 def get_pokemon_details(name):
     url = f"https://pokeapi.co/api/v2/pokemon/{clean_pokemon_name(name)}"
     response = requests.get(url)
+    if response.status_code != 200:
+        return None, {}
     data = response.json()
     
     sprite = data['sprites']['other']['official-artwork']['front_default']
     stats = {s['stat']['name']: s['base_stat'] for s in data['stats']}
 
     return sprite, stats
-
-# top 8 teams with the pokemon
-# most common partners
 
 # helper to create pie charts with specific styling parameters
 def make_pie_chart(counts, title, threshold=5):
@@ -280,22 +368,34 @@ def make_pie_chart(counts, title, threshold=5):
 
 # creates pie chart with abilities used by each pokemon
 def pokemon_abilities(data, pokemon):
-    counts = Counter(mon['ability'] for player in data for mon in player['decklist'] if mon['name'] == pokemon)
+    counts = Counter()
+    for player in data:
+        for mon in player.decklist:
+            if mon.name == pokemon:
+                counts[mon.ability] += 1
     make_pie_chart(counts, "Abilities")
 
 # creates pie chart with teras used by each pokemon
 def pokemon_teras(data, pokemon):
-    counts = Counter(mon['teratype'] for player in data for mon in player['decklist'] if mon['name'] == pokemon)
+    counts = Counter()
+    for player in data:
+        for mon in player.decklist:
+            if mon.name == pokemon:
+                counts[mon.teratype] += 1
     make_pie_chart(counts, "Tera Types")
 
 # creates pie chart with items used by each pokemon
 def pokemon_items(data, pokemon):
-    counts = Counter(mon['item'] for player in data for mon in player['decklist'] if mon['name'] == pokemon)
+    counts = Counter()
+    for player in data:
+        for mon in player.decklist:
+            if mon.name == pokemon:
+                counts[mon.item] += 1
     make_pie_chart(counts, "Items")
 
 # finds the top performing teams with the selected pokemon
 def get_top_teams(data, pokemon, n=8):
-    player_info = get_player_data(data)
+    player_info = get_player_info(data)
     filtered = []
     for p in player_info:
         for i in range(1, 7):
@@ -310,7 +410,7 @@ def get_top_partners(data, pokemon):
     partner_counts = Counter()
     total = 0
     for player in data:
-        names = [mon['name'] for mon in player['decklist']]
+        names = [mon.name for mon in player.decklist]
         if pokemon in names:
             total += 1
             for name in names:
@@ -329,10 +429,10 @@ def get_top_moves(data, pokemon):
     move_counts = Counter()
     total = 0
     for player in data:
-        for mon in player['decklist']:
-            if mon['name'] == pokemon:
+        for mon in player.decklist:
+            if mon.name == pokemon:
                 total += 1
-                for move in mon['badges']:
+                for move in mon.moves:
                     move_counts[move] += 1
     
     moves = []
@@ -347,12 +447,25 @@ def get_top_moves(data, pokemon):
 def pokemon_info(data):
     col1, col2 = st.columns([1, 4])
     with col1:
+        if st.session_state.recently_viewed.get_recent():
+            st.subheader("Recently Viewed")
+            for pokemon in st.session_state.recently_viewed.get_recent():
+                sprite, _ = get_pokemon_details(pokemon)
+                st.image(sprite, width=60)
+                if st.button(pokemon):
+                    st.session_state.pokemon_select = pokemon
         st.subheader("Usage")
         usage_list(data)
     with col2:
-        selected_pokemon = st.selectbox("Select a Pokemon", get_pokemon_list(data), index=None, placeholder="Enter a Pokemon...")
-
+        selected_pokemon = st.selectbox(
+            "Select a Pokemon", 
+            get_pokemon_list(data), 
+            index=None, 
+            placeholder="Enter a Pokemon...",
+            key="pokemon_select"
+        )
         if selected_pokemon:
+            st.session_state.recently_viewed.enqueue(selected_pokemon)
             sprite, stats = get_pokemon_details(selected_pokemon)
             img_col, details_col = st.columns([1, 4])
             with img_col:
@@ -403,6 +516,9 @@ def pokemon_info(data):
 # --------- Main ------------
 
 data = load_tournament()
+
+if "recently_viewed" not in st.session_state:
+    st.session_state.recently_viewed = RecentlyViewedQueue()
 
 tab1, tab2, tab3 = st.tabs(
     ["Tournament Stats", "Usage Stats", "Pokemon"], 
