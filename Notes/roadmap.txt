@@ -1,4 +1,0 @@
-- player's swiss run
-- best/worst matchups for specific pokemon?
-- common partners for a pokemon
-
