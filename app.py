@@ -69,7 +69,7 @@ def load_tournament():
         "Toronto 2026": "Data Sets/Toronto_2026.json",
     }
     tournament = st.selectbox("Select a tournament", list(tournaments.keys()))
-    with open(tournaments[tournament]) as f:
+    with open(tournaments[tournament], encoding='utf-8') as f:
         raw = json.load(f)
     
     players = []
