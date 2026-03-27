@@ -6,7 +6,6 @@ import pandas as pd
 import requests
 import matplotlib.pyplot as plt
 
-# -------- Classes ----------
 class Pokemon:
     def __init__(self, name, ability, item, teratype, moves):
         self.name = name
@@ -21,7 +20,7 @@ class Player:
         self.placing = placing
         self.wins = wins
         self.losses = losses
-        self.decklist = decklist  # list of Pokemon objects
+        self.decklist = decklist
     
     @property
     def record(self):
@@ -42,8 +41,6 @@ class RecentlyViewedQueue:
     def get_recent(self):
         return list(reversed(self.queue))
 
-
-# --------- Page Settings --------
 st.set_page_config(layout="wide", page_title="VGC Analyser", page_icon="https://www.serebii.net/itemdex/sprites/sv/pokeball.png")
 st.markdown(
     """
@@ -58,7 +55,7 @@ st.markdown(
 st.title("VGC Tournament Analyser")
 
 
-# ------- Tournament Picker -----------
+
 def load_tournament():
     # Dictionary containing all tournaments. To add a new tournament, simply add a line under here
     tournaments = {
@@ -94,12 +91,7 @@ def load_tournament():
             decklist=decklist
         ))
     return players
-          
-
-
-# ----------- Tournament Stats -----------
         
-# Ensures every player has 6 pokemon, sets them as "unknown" if missing
 def get_pokemon_name(decklist, index):
     if index < len(decklist):
         return decklist[index].name
@@ -130,7 +122,6 @@ def tournament_stats(data):
     query = st.text_input("Search for Player, Placing or Pokemon")
     player_info = get_player_info(data)
 
-    # Filters the table for specific criteria
     if query:
         filtered = []
         for p in player_info:
@@ -149,7 +140,6 @@ def tournament_stats(data):
 
     gb = GridOptionsBuilder.from_dataframe(dataFrame)
     gb.configure_selection(selection_mode="single", use_checkbox=False)
-    # changing the placing and record columns to be smaller as data is short
     gb.configure_column("Placing", width=80)
     gb.configure_column("Record", width=100)
     grid_options = gb.build()
@@ -175,8 +165,7 @@ def display_teamsheet(data, selected_name):
 
     st.sidebar.code(showdown_text)
     
-# ----------- Usage Stats -------------
-# Function that collects day 1/2 usage, % change, record, winrate and appearances
+
 def get_usage_data(data):
     day1_counts = Counter()
     pokemon_wins = Counter()
@@ -187,7 +176,6 @@ def get_usage_data(data):
             pokemon_wins[mon.name] += player.wins
             pokemon_losses[mon.name] += player.losses
 
-    # Finds players in day 2 by filtering for players with over 5 wins
     day2_players = []
     for i in data:
         if i.wins > 5:
@@ -196,7 +184,7 @@ def get_usage_data(data):
     for player in day2_players:
         for mon in player.decklist:
             day2_counts[mon.name] += 1
-
+ 
     usage = []
     for pokemon, count in day1_counts.most_common():
         day1_percentage = (count / len(data)) * 100
@@ -265,10 +253,6 @@ def usage_stats(data):
                     height = 710
                 )
 
-
-# ------------ Pokemon Info ----------
-
-# for later use when pulling from pokeapi
 STAT_NAMES = {
     "hp": "HP",
     "attack": "Atk",
@@ -288,7 +272,6 @@ def get_pokemon_list(data):
     usage = get_usage_data(data)
     return [entry["Pokemon"] for entry in usage]
 
-# Cleans the names of specific pokemon in my datasets, so that they can work with PokeAPI
 def clean_pokemon_name(name):
     name = name.lower()
     # Removes brackets
@@ -328,7 +311,6 @@ def clean_pokemon_name(name):
     name = name.strip("-")
     return name
 
-# streamlit decorator that stores result of the function - this increases speed with large amounts of api calls
 @st.cache_data
 def get_pokemon_details(name):
     url = f"https://pokeapi.co/api/v2/pokemon/{clean_pokemon_name(name)}"
@@ -342,7 +324,6 @@ def get_pokemon_details(name):
 
     return sprite, stats
 
-# helper to create pie charts with specific styling parameters
 def make_pie_chart(counts, title, threshold=5):
     total = sum(counts.values())
     grouped = Counter()
@@ -369,7 +350,6 @@ def make_pie_chart(counts, title, threshold=5):
     st.subheader(title)
     st.pyplot(fig, use_container_width=False)
 
-# creates pie chart with abilities used by each pokemon
 def pokemon_abilities(data, pokemon):
     counts = Counter()
     for player in data:
@@ -378,7 +358,6 @@ def pokemon_abilities(data, pokemon):
                 counts[mon.ability] += 1
     make_pie_chart(counts, "Abilities")
 
-# creates pie chart with teras used by each pokemon
 def pokemon_teras(data, pokemon):
     counts = Counter()
     for player in data:
@@ -387,7 +366,6 @@ def pokemon_teras(data, pokemon):
                 counts[mon.teratype] += 1
     make_pie_chart(counts, "Tera Types")
 
-# creates pie chart with items used by each pokemon
 def pokemon_items(data, pokemon):
     counts = Counter()
     for player in data:
@@ -396,7 +374,6 @@ def pokemon_items(data, pokemon):
                 counts[mon.item] += 1
     make_pie_chart(counts, "Items")
 
-# finds the top performing teams with the selected pokemon
 def get_top_teams(data, pokemon, n=8):
     player_info = get_player_info(data)
     filtered = []
@@ -408,7 +385,6 @@ def get_top_teams(data, pokemon, n=8):
     filtered.sort(key=lambda x: int(x['Placing']))
     return filtered[:n]
 
-# find the most common partners for a pokemon
 def get_top_partners(data, pokemon):
     partner_counts = Counter()
     total = 0
@@ -446,7 +422,6 @@ def get_top_moves(data, pokemon):
         })
     return moves
 
-# displays the pokemon info 
 def pokemon_info(data):
     col1, col2 = st.columns([1, 4])
     with col1:
@@ -498,7 +473,6 @@ def pokemon_info(data):
             with items_col:
                 pokemon_items(data, selected_pokemon)
             
-            # displays top 8 placing teams with the selected pokemon
             st.subheader(f"Top teams with {selected_pokemon}")
             top_teams = get_top_teams(data, selected_pokemon)
             dataFrame = pd.DataFrame(top_teams)
@@ -515,8 +489,6 @@ def pokemon_info(data):
                 top_moves = get_top_moves(data, selected_pokemon)
                 dataFrame = pd.DataFrame(top_moves)
                 st.dataframe(dataFrame, height = 318, hide_index=True)               
-
-# --------- Main ------------
 
 data = load_tournament()
 
